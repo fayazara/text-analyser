@@ -37,17 +37,55 @@ app.get('/', async (req, res) => {
                         count: frequencyMap[word]
                     })
                 }
-                
+
                 sorted.sort((a, b) => {
                     return b.count - a.count;
                 })
-                var top10 = sorted.slice(0,10);
-                res.send(top10);
+                var top10 = sorted.slice(0, 10);
+
+                const linksArr = top10.map(x => `https://dictionary.yandex.net/api/v1/dicservice.json/lookup?key=dict.1.1.20170610T055246Z.0f11bdc42e7b693a.eefbde961e10106a4efa7d852287caa49ecc68cf&lang=en-en&text=${x.word}`);
+
+                const resultArray = await Promise.all(top10.map(async (i) => fetchData(i)));
+
+                res.send(resultArray);
             }
         } else throw "No URL Provided"
     } catch (err) {
         res.status(400).send(err)
     }
 })
+
+async function fetchData(item) {
+    try {
+        const { data } = await axios.get(`https://dictionary.yandex.net/api/v1/dicservice.json/lookup?key=dict.1.1.20170610T055246Z.0f11bdc42e7b693a.eefbde961e10106a4efa7d852287caa49ecc68cf&lang=en-en&text=${item.word}`);
+        var synValues = null;
+        var posValue = null;
+        if (data.def.length && data.hasOwnProperty("def")) {
+            if (data.def[0].hasOwnProperty("pos")) {
+                posValue = data.def[0].pos;;
+                if (data.def[0].hasOwnProperty("tr")) {
+                    synValues = getSynonyms(data.def[0].tr)
+                }
+            }
+        }
+        return {
+            words: item.word,
+            count: item.count,
+            pos: posValue,
+            syn: synValues
+        }
+    } catch (e) {
+        console.log(e)
+    }
+}
+
+function getSynonyms(arr) {
+    var syn = [];
+    arr.map(item => {
+        if(item.syn)
+        syn.push(item.text);
+    })
+    return syn;
+}
 
 app.listen(port, () => console.log(`Example app listening at http://localhost:${port}`))
